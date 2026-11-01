@@ -8,29 +8,57 @@ function SignUpForm({ onLogin }) {
   const [errors, setErrors] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    setErrors([]);
-    setIsLoading(true);
-    fetch("/signup", {
+  async function handleSubmit(e) {
+  e.preventDefault();
+  setErrors([]);
+
+  if (password !== passwordConfirmation) {
+    setErrors(["Passwords do not match"]);
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    // Register the new user.
+    const signupResponse = await fetch("/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        username,
-        password,
-        password_confirmation: passwordConfirmation
-      }),
-    }).then((r) => {
-      setIsLoading(false);
-      if (r.ok) {
-        r.json().then(({token, user}) => onLogin(token, user));
-      } else {
-        r.json().then((err) => setErrors(err.errors));
-      }
+      body: JSON.stringify({ username, password }),
     });
+
+    const signupData = await signupResponse.json();
+
+    if (!signupResponse.ok) {
+      setErrors([signupData.error || "Signup failed"]);
+      return;
+    }
+
+    // Log in to obtain a JWT token.
+    const loginResponse = await fetch("/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ username, password }),
+    });
+
+    const loginData = await loginResponse.json();
+
+    if (!loginResponse.ok) {
+      setErrors([loginData.error || "Login failed after signup"]);
+      return;
+    }
+
+    onLogin(loginData.access_token, loginData.user);
+  } catch (error) {
+    setErrors(["Unable to connect to the server. Please try again."]);
+  } finally {
+    setIsLoading(false);
   }
+}
 
   return (
     <form onSubmit={handleSubmit}>
